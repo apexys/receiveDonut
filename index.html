@@ -1,0 +1,81 @@
+<!doctype html><html>
+    <head>
+        <meta charset="utf-8"/>
+        <style>
+        canvas{background-color:#000;}
+        body{
+            background-color:#000;
+            padding:0px;
+            margin:0px;
+            height:100vh;
+            width:100vw;
+            overflow:hidden;
+            }
+            </style>
+            <script type="text/ecmascript" src="quickscope.js"></script>
+            <script type="text/glsl" id="vertex">
+attribute vec2 pos;
+
+varying vec2 vUv;
+                
+void main () {
+                  vUv = (pos + 1.0) * 0.5;
+                  gl_Position = vec4(pos, 0.0, 1.0);
+                }
+            </script>
+            <script type="text/glsl" id="fragment">
+                #define PI 3.1415926535897932384626433832795
+                #define iterations_1 20.0
+                #define iterations_2 30.0
+                #define iterations_3 20.0
+                #define size_1 70.0
+                #define size_2 45.0
+                #define size_3 20.0
+precision highp float;
+
+uniform sampler2D tex;
+
+uniform vec2 size;
+
+varying vec2 vUv;
+
+/*float correlate(float iterations, float size, float compare){
+    float mean = 0.0;
+    for(float i = 0.0; i < iterations; i+= 1.0){
+        vec2 sample_offset = vec2(cos((i / iterations) * 2.0 * PI), sin((i / iterations) * 2.0 * PI));
+        vec4 sample_value = texture2D(tex, vUv + (sample_offset / size * vec2(size))) / 2.0 + 0.5;
+        mean += (sample_value.r + sample_value.g + sample_value.b) * compare;
+    }
+    return mean / iterations;
+}*/
+
+void main() {
+    //äußerer kreis (weiß)
+    float mean = 0.0;
+    for(float i = 0.0; i < iterations_1; i+= 1.0){
+        vec2 sample_offset = vec2(cos((i / iterations_1) * 2.0 * PI), sin((i / iterations_1) * 2.0 * PI));
+        vec4 sample_value = texture2D(tex, vUv + (sample_offset / size * vec2(size_1))) / 2.0 + 0.5;
+        mean += sample_value.r + sample_value.g + sample_value.b;
+    }
+    for(float i = 0.0; i < iterations_2; i+= 1.0){
+        vec2 sample_offset = vec2(cos((i / iterations_2) * 2.0 * PI), sin((i / iterations_2) * 2.0 * PI));
+        vec4 sample_value = texture2D(tex, vUv + (sample_offset / size * vec2(size_2))) / 2.0 + 0.5;
+        mean -= sample_value.r + sample_value.g + sample_value.b;
+    }
+    for(float i = 0.0; i < iterations_3; i+= 1.0){
+        vec2 sample_offset = vec2(cos((i / iterations_3) * 2.0 * PI), sin((i / iterations_3) * 2.0 * PI));
+        vec4 sample_value = texture2D(tex, vUv + (sample_offset / size * vec2(size_3))) / 2.0 + 0.5;
+        mean += sample_value.r + sample_value.g + sample_value.b;
+    }
+    mean /= 3.0 * (iterations_1 + iterations_2 + iterations_3);
+    mean = mean * mean;
+    gl_FragColor = vec4(mean, mean, 0.0, 1.0);
+}
+            </script>
+        </head>
+            <body onload="j()">
+            <canvas></canvas>
+            <img src="testbild.png"/>
+            <video></video>
+        </body>
+</html>
