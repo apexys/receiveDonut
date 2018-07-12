@@ -244,9 +244,3 @@ var init = () => {
 	g.clearColor(.5, 0.0, 0.0, 1.0);
 	//setInterval(restart, 60000);
 };
-
-onresize = () => {
-	_c.height = innerHeight;
-	_c.width = innerWidth;
-	rbb = new Uint8Array(4 * _c.height * _c.width);
-};
