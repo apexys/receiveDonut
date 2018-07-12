@@ -1,0 +1,88 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8"/>
+        <title>Ringcode Generator</title>
+        <style>
+        body {
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            background-color: #ccc;
+        }
+        .a {
+            position: absolute;
+            top: 0px;
+            left: 0px;
+        }
+
+        </style>
+    </head>
+    <body>
+        <div style="position:relative; height: 512px;">
+            <canvas class="a"></canvas>
+            <img class="a"/></div>
+        <input type="text" placeholder="ID"></input>
+        <script>
+var c = document.getElementsByTagName("canvas")[0];
+c.height = c.width = 512;
+c.c = c.getContext("2d");
+document.getElementsByTagName("input")[0].addEventListener("input", (e) => {
+    var v = e.target.value;
+    if((v + '').length > 0){
+        try{
+            v = parseInt(v,10);
+        }catch(e)
+        {return;}
+        if(isNaN(v))return;
+        if(v > 31 || v < 0)return;
+    }else return;
+    var count = 5 * 3 + 1 + 4
+    let cseg = (a) => 1.5 * Math.PI + ((a / count) * 2 * Math.PI);
+    c.c.fillStyle = "white";
+    c.c.fillRect(0, 0, 512, 512);
+    c.c.beginPath();
+    c.c.fillStyle = "black";
+    c.c.moveTo(256, 256);
+    c.c.arc(256, 256, 256, cseg(0), cseg(4));
+    c.c.closePath();
+    c.c.fill();
+    for(var i = 4; i >= 0; i--){
+        var d0 = 4 + i * 3;
+        var d1 = d0 + 3;
+        d0 += v & (1 << i) ? 1 : 2;
+        c.c.beginPath()
+        c.c.moveTo(256, 256);
+        c.c.arc(256, 256, 257, cseg(d0), cseg(d1));
+        c.c.closePath();
+        c.c.fill();
+    }
+    c.c.beginPath();
+    c.c.fillStyle = "white";
+    c.c.arc(256, 256, 256 / 4 * 3, 0, 2 * Math.PI);
+    c.c.closePath();
+    c.c.fill();
+    c.c.beginPath();
+    c.c.fillStyle = "black";
+    c.c.arc(256, 256, 256 / 2, 0, 2 * Math.PI);
+    c.c.closePath();
+    c.c.fill();
+    c.c.beginPath();
+    c.c.fillStyle = "white";
+    c.c.arc(256, 256, 256 / 4, 0, 2 * Math.PI);
+    c.c.closePath();
+    c.c.fill();
+    c.c.font = "64px sans-serif";
+    c.c.fillStyle = "black";
+    c.c.fillText(v, 12, 500);
+    c.c.beginPath()
+    c.c.moveTo(512 - 32, 0);
+    c.c.lineTo(512, 64);
+    c.c.lineTo(512 - 64, 64);
+    c.c.closePath();
+    c.c.fill();
+    document.getElementsByTagName("img")[0].src = c.toDataURL();
+});
+        </script>
+    </body>
+</html>
