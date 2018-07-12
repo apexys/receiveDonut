@@ -2,9 +2,15 @@ var inputSize = [640, 480]
 var video;
 var rbb;
 var paused = false;
+var overlay = undefined;
+var framet = 0;
+var outer_ring_size = 15.0;
+var hcont = undefined;
+var median = 0;
 
 drawScene = () => {
 	if(paused){requestAnimationFrame(drawScene); return;}
+	var t1 = performance.now();
 	g.bindTexture(g.TEXTURE_2D, postfxtex);
 	g.texSubImage2D(g.TEXTURE_2D, 0, 0, 0, g.RGBA, g.UNSIGNED_BYTE, video);
 	g.useProgram(f);
@@ -12,6 +18,7 @@ drawScene = () => {
 	g.activeTexture(g.TEXTURE0);
 	g.bindTexture(g.TEXTURE_2D, postfxtex);
 	g.uniform1i(f.tex, 0);
+	g.uniform1f(f.size_1,outer_ring_size);
 	//var im = document.querySelector("img");
 	g.uniform2f(f.size, inputSize[0], inputSize[1]);
 	g.bindBuffer(g.ARRAY_BUFFER, dummyBuffer);
@@ -28,7 +35,15 @@ drawScene = () => {
 		if(y < box.ymin - radius)return false;
 		return true;
 	}
+	var min = 255;
+	var max = 0;
 	for(var i = 0; i < rbb.length; i += 4){
+		if(rbb[i+2] > max){
+			max = rbb[i+2];
+		}
+		if(rbb[i+2] < min){
+			min = rbb[i+2];
+		}
 		if(rbb[i] > 0){
 			var __y = (1 - (Math.floor(i / 4 / _c.width) / _c.height)) * inputSize[1];
 			var __x = ((i / 4) % _c.width) / _c.width * inputSize[0];
@@ -46,24 +61,52 @@ drawScene = () => {
 			if(!found)finds.push({xmin: __x, xmax: __x, ymin: __y, ymax: __y});
 		}
 	}
-	//if(finds.length > 0)console.log(finds);
-	var markers = document.getElementsByClassName("marker");
-	for(var i = 0; i < finds.length && i < markers.length; i++){
-		var c = [(finds[i].xmax + finds[i].xmin) / 2, (finds[i].ymax + finds[i].ymin) / 2];
-		markers[i].style.width = (42 / inputSize[0] * 100) + "vw";
-		markers[i].style.height = (42 / inputSize[1] * 100) + "vh";
-		markers[i].style.left = ((c[0] - 21) / inputSize[0] * 100) + "vw";
-		markers[i].style.top = ((c[1] - 21) / inputSize[1] * 100) + "vh";
-		markers[i].style.display = "block";
-		markers[i].innerHTML = "find: " + i + "<br>id:" + 0;
-		getMarkerData(c);
-	}
-	for(i=i;i < markers.length; i++){
-		markers[i].style.display = "none";
-	}
+	median = (((max - min) / 256) * 2) - 1
 
+	//if(finds.length > 0)console.log(finds);
+	overlay.clearRect(0,0,inputSize[0],inputSize[1]);
+	for(var i = 0; i < finds.length; i++){
+		overlay.strokeStyle = "red";
+		var center = [(finds[i].xmax + finds[i].xmin) / 2, (finds[i].ymax + finds[i].ymin) / 2];
+		overlay.strokeText(i,center[0]+30,center[1]+30);
+		overlay.beginPath();
+		overlay.moveTo(center[0],center[1]);
+		overlay.arc(center[0],center[1],finds[i].xmax-center[0],0,2*Math.PI);
+		overlay.stroke();
+
+		/*
+		overlay.strokeStyle = "green";
+		overlay.beginPath();
+		overlay.moveTo(center[0],center[1]);
+		overlay.arc(center[0],center[1],outer_ring_size,0,2*Math.PI);
+		overlay.stroke();
+		overlay.strokeStyle = "yellow";
+		overlay.beginPath();
+		//overlay.arc(center[0],center[1],outer_ring_size * 3,0,2*Math.PI);
+		overlay.ellipse(center[0],center[1],outer_ring_size * 3 * ((finds[i].xmax - finds[i].xmin) / (finds[i].ymax - finds[i].ymin)),outer_ring_size * 3,0,0,2*Math.PI);
+		overlay.stroke();
+		overlay.strokeText(((finds[i].xmax - finds[i].xmin) / (finds[i].ymax - finds[i].ymin)),center[0]+30,center[1]+40);
+		overlay.fillStyle = "red";*/
+		getMarkerData(center);
+	}
+	var t2 = performance.now();
+	overlay.fillStyle = "white";
+	framet = (framet * 0.9) + ((t2-t1) * 0.1)
+	overlay.fillText((framet+"").substring(0,3) + "ms",0,12);
+	overlay.fillText(`min: ${min}, max: ${max}`,0,24);
+	overlay.fillText(`Pixel 0: ${samplePixel2(inputSize[0]/2,inputSize[1]/2)}, median: ${median}`,0,36);
 	requestAnimationFrame(drawScene);	
 };
+
+let samplePixel2 = (x,y) => {
+	x = x | 0;
+	y = y | 0;
+	var i = y * inputSize[0] + x; //Get pixel index
+	i = i * 4;//Four channels
+	i = i + 2;//We'd like the blue one
+	i = i | 0;
+	return ((rbb[i] / 255) * 2) - 1;
+}
 
 getMarkerData = (c) => {
 	var count = 5 * 3 + 1 + 4
@@ -72,20 +115,47 @@ getMarkerData = (c) => {
 	const sampleCount = 360;
 	var samples = new Float32Array(sampleCount);
 	var min = 10, max = -10;
+	let get_x = (angle,radius) => c[0] + (Math.cos(angle) * radius);
+	let get_y = (angle,radius) => c[1] + (Math.sin(angle) * radius);
+	let sampleRadiusDistance = (angle, radius) => samplePixel(get_x(angle,radius), get_y(angle,radius));
 	for(var i = 0; i < sampleCount; i++){
-		var x = i / sampleCount * 2 * Math.PI;
-		samples[i] = samplePixel(c[0] + Math.cos(x) * s, c[1] + Math.sin(x) * s);
+		var angle = (i / sampleCount) * 2 * Math.PI;
+		var distance = 1;
+		while(sampleRadiusDistance(angle,distance) > median){
+			distance++;
+		}//Skip center
+		var d0 = distance; //Distance from center to outer rim
+		while(sampleRadiusDistance(angle,distance) < median){
+			distance++;
+		}//Skip black ring
+		var d1 = distance;
+		var d2 = distance + (d1 - d0);
+		var d2_5 = distance + ((d1 - d0) * 1.5);
+		samples[i] = sampleRadiusDistance(angle,d2_5);
+		overlay.fillRect(get_x(angle,d2_5),get_y(angle,d2_5),2,2);
+		if(i == 270){
+			overlay.fillText(`d0: ${d0}, d1: ${d1}, d2_5: ${d2_5}`,c[0]+ 50,c[1]);
+			hcont.clearRect(0, 0, 360, 32);
+			for(var i = 0; i < sampleCount; i++){
+				hcont.fillStyle = `rgb(${(sampleRadiusDistance(angle,i) * 127) + 127},0,0`;
+				overlay.fillStyle = 'yellow';
+				overlay.fillRect(get_x(angle,i),get_y(angle,i),1,1);
+				hcont.fillRect(i, 0, 1, 32);
+			}
+		}
+		//samples[i] = samplePixel(c[0] + Math.cos(x) * s, c[1] + Math.sin(x) * s);
 		//samples[i] += samplePixel(c[0] + Math.cos(x) * (s-1), c[1] + Math.sin(x) * (s-1));
 		//samples[i] += samplePixel(c[0] + Math.cos(x) * (s + 1), c[1] + Math.sin(x) * (s+1));
 		
 		if(samples[i] < min) min = samples[i];
 		if(samples[i] > max) max = samples[i];
 	}
-	hcont.clearRect(0, 0, 360, 32);
+
+	/*hcont.clearRect(0, 0, 360, 32);
 	for(var i = 0; i < sampleCount; i++){
 		hcont.fillStyle = `rgb(0, 0, ${(samples[i] - min) * 255 / (max - min)})`;
 		hcont.fillRect(i, 0, 1, 32);
-	}
+	}*/
 	/*
 	var flanks = []
 	var mid = (min + max) / 2
@@ -107,14 +177,22 @@ samplePixel = (x, y) => {
 	return (rbb[(((y2 * _c.width) + x2) * 4) + 2] / 255) * 2 - 1;
  }
 
-j = () => {
-	window.hcont = document.getElementById("hiss").getContext("2d");
+
+var init = () => {
+	hcont = document.getElementById("hiss").getContext("2d");
 
 
 	document.body.addEventListener("click", ()=>{paused = !paused});
-	window._c = document.getElementsByTagName("canvas")[0];
-	_c.height = window.innerHeight;
-	_c.width = window.innerWidth;
+	window._c = document.getElementById('3d');
+	_c.height =  inputSize[1]// + 'px';//window.innerHeight;
+	_c.width = inputSize[0]// + 'px';//window.innerWidth;
+
+	overlay = document.getElementById('overlay');
+	overlay.height = inputSize[1];
+	overlay.width = inputSize[0];
+	overlay = overlay.getContext('2d');
+	overlay.font = "12px monospace";
+
 	g = _c.getContext("webgl");
 	rbb = new Uint8Array(4 * _c.height * _c.width);
 
@@ -143,6 +221,7 @@ j = () => {
 	g.enableVertexAttribArray(f.pos);
 	f.tex = g.getUniformLocation(f, "tex");
 	f.size = g.getUniformLocation(f, "size");
+	f.size_1 = g.getUniformLocation(f,"size_1");
 		
 	dummyBuffer = g.createBuffer();
 	g.bindBuffer(g.ARRAY_BUFFER, dummyBuffer);
