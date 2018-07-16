@@ -1,6 +1,9 @@
 <!doctype html><html>
     <head>
         <meta charset="utf-8"/>
+        <script>
+            var gid = (id) => document.getElementById(id);
+        </script>
         <style>
         canvas#3d{
             /*background-color:#000;*/
@@ -45,6 +48,15 @@
         video{
             display: none;
         }
+        
+        #info{
+            position: fixed;
+            bottom: 0;
+            right: 0;
+            font-family: monospace;
+            color: white;
+        }
+
             </style>
             <script type="text/ecmascript" src="script.js"></script>
             <script type="text/glsl" id="vertex">
@@ -114,6 +126,6 @@ void main() {
             <canvas id="overlay"></canvas>
             <video></video>
             <canvas id="hiss" height="32px" width="360px"></canvas>
-  
+            <div id="info"></div>
         </body>
 </html>

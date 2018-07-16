@@ -72,22 +72,16 @@ drawScene = () => {
 		overlay.beginPath();
 		overlay.moveTo(center[0],center[1]);
 		overlay.arc(center[0],center[1],finds[i].xmax-center[0],0,2*Math.PI);
+
+		var data = getMarkerData(center);
+		if(data){
+			overlay.strokeText("ID: " + data.number,center[0]+30,center[1]+45);
+			overlay.strokeText("Code: " + data.code,center[0]+30,center[1]+60);
+			overlay.moveTo(center[0], center[1]);
+			overlay.lineTo(center[0] + (Math.cos(data.orientation) * 50), center[1] + (Math.sin(data.orientation) * 50));
+		}
 		overlay.stroke();
 
-		/*
-		overlay.strokeStyle = "green";
-		overlay.beginPath();
-		overlay.moveTo(center[0],center[1]);
-		overlay.arc(center[0],center[1],outer_ring_size,0,2*Math.PI);
-		overlay.stroke();
-		overlay.strokeStyle = "yellow";
-		overlay.beginPath();
-		//overlay.arc(center[0],center[1],outer_ring_size * 3,0,2*Math.PI);
-		overlay.ellipse(center[0],center[1],outer_ring_size * 3 * ((finds[i].xmax - finds[i].xmin) / (finds[i].ymax - finds[i].ymin)),outer_ring_size * 3,0,0,2*Math.PI);
-		overlay.stroke();
-		overlay.strokeText(((finds[i].xmax - finds[i].xmin) / (finds[i].ymax - finds[i].ymin)),center[0]+30,center[1]+40);
-		overlay.fillStyle = "red";*/
-		getMarkerData(center);
 	}
 	var t2 = performance.now();
 	overlay.fillStyle = "white";
@@ -114,35 +108,29 @@ getMarkerData = (c) => {
 	const s = 21;
 	const sampleCount = 360;
 	var samples = new Float32Array(sampleCount);
-	var min = 10, max = -10;
-	let get_x = (angle,radius) => c[0] + (Math.cos(angle) * radius);
-	let get_y = (angle,radius) => c[1] + (Math.sin(angle) * radius);
+	var min = 10000, max = -10000;
+	let get_x = (angle,radius) => Math.min(inputSize[0], Math.max(c[0] + (Math.cos(angle) * radius),0));
+	let get_y = (angle,radius) => Math.min(inputSize[1], Math.max( c[1] + (Math.sin(angle) * radius),0));
 	let sampleRadiusDistance = (angle, radius) => samplePixel(get_x(angle,radius), get_y(angle,radius));
 	for(var i = 0; i < sampleCount; i++){
 		var angle = (i / sampleCount) * 2 * Math.PI;
 		var distance = 1;
-		while(sampleRadiusDistance(angle,distance) > median){
+		while(sampleRadiusDistance(angle,distance) > median && distance < 100){
 			distance++;
 		}//Skip center
 		var d0 = distance; //Distance from center to outer rim
-		while(sampleRadiusDistance(angle,distance) < median){
+		while(sampleRadiusDistance(angle,distance) < median && distance < 100){
 			distance++;
 		}//Skip black ring
 		var d1 = distance;
 		var d2 = distance + (d1 - d0);
-		var d2_5 = distance + ((d1 - d0) * 1.5);
+		var d2_5 = distance + ((d1 - d0) * 1.3);
 		samples[i] = sampleRadiusDistance(angle,d2_5);
-		overlay.fillRect(get_x(angle,d2_5),get_y(angle,d2_5),2,2);
-		if(i == 270){
-			overlay.fillText(`d0: ${d0}, d1: ${d1}, d2_5: ${d2_5}`,c[0]+ 50,c[1]);
-			hcont.clearRect(0, 0, 360, 32);
-			for(var i = 0; i < sampleCount; i++){
-				hcont.fillStyle = `rgb(${(sampleRadiusDistance(angle,i) * 127) + 127},0,0`;
-				overlay.fillStyle = 'yellow';
-				overlay.fillRect(get_x(angle,i),get_y(angle,i),1,1);
-				hcont.fillRect(i, 0, 1, 32);
-			}
-		}
+		samples[i] += sampleRadiusDistance(angle,d2_5 - 1);
+		samples[i] += sampleRadiusDistance(angle,d2_5 + 1);
+		samples[i] /= 3;
+		/*overlay.fillStyle = "white";
+		overlay.fillRect(get_x(angle,d2_5),get_y(angle,d2_5),2,2);*/
 		//samples[i] = samplePixel(c[0] + Math.cos(x) * s, c[1] + Math.sin(x) * s);
 		//samples[i] += samplePixel(c[0] + Math.cos(x) * (s-1), c[1] + Math.sin(x) * (s-1));
 		//samples[i] += samplePixel(c[0] + Math.cos(x) * (s + 1), c[1] + Math.sin(x) * (s+1));
@@ -150,15 +138,103 @@ getMarkerData = (c) => {
 		if(samples[i] < min) min = samples[i];
 		if(samples[i] > max) max = samples[i];
 	}
+	var mid = (min + max) / 2
+	//console.log(min,max);
+
+	//Subsample filter
+	/*var subsampled = new Float32Array(sampleCount/ 4);
+	for(var i = 0; i < sampleCount; i++){
+		subsampled[i/4 | 0] += samples[i] * 0.25;
+	}*/
+
+	var readSample = i => (samples[i] + samples[i + 1 % 360] + samples[i - 1 % 360]) / 3;
+	var sampleHigh = i => (samples[i] + samples[i + 1 % 360] + samples[i - 1 % 360]) / 3 > mid;
+	var sampleLow = i => (samples[i] + samples[i + 1 % 360] + samples[i - 1 % 360]) / 3 < mid;
+
+	//Skip possibly fragmented first sample
+	var offset = 0;
+	var j = 0;
+	while(sampleLow(j)) j++;
+
+	var segments = [];
+	var inSegment = false;
+	var segStart;
+	var segL;
+	var segid = 0;
+	var longestLength = 0;
+	var longestId = 0;
+	for(var i = 0; i < sampleCount; i++){
+		if(sampleLow(i + offset % sampleCount)){
+			if(!inSegment){//New Segment
+				inSegment = true;
+				segStart = i;
+				segL = 0;
+			}else{
+				segL ++;
+			}
+		}else{
+			if(inSegment){
+				var seg = {
+					start: segStart / sampleCount * 100,
+					length: segL / sampleCount * 100,
+					id: segid
+				};
+				segments.push(seg);
+				segid ++;
+				inSegment = false;
+				if(seg.length > longestLength){
+					longestLength = seg.length;
+					longestId = seg.id;
+				}
+			}
+		}
+	}
+
+	if(segments.length == 6){
+
+		var arrayRotate = (arr, count) => {
+			count -= arr.length * Math.floor(count / arr.length);
+			arr.push.apply(arr, arr.splice(0, count));
+			return arr;
+		};
+
+		if(longestId != 0){
+		segments = arrayRotate(segments,-longestId);
+		};
+
+		var avgl = 0;
+		for(var i = 1; i < 6; i++){
+			avgl += segments[i].length / 5;
+		}
+
+		var longest = segments.shift();
+
+		var code = segments.map(s => s.length > avgl ? 'L' : 'S').join('');
+		var number = segments.reduce((prev,current,index) => prev + (current.length < avgl ? 0: 2 ** (4-index)),0);
+
+		var data = {
+			orientation: longest.start / 50 * Math.PI + (1.5 * Math.PI),
+			code: code,
+			number: number
+		}
+		return data;
+	}else{
+		return null;
+		//TODO possibly fix fragmented segments
+	}
+
+	//console.log(segments);
 
 	/*hcont.clearRect(0, 0, 360, 32);
 	for(var i = 0; i < sampleCount; i++){
-		hcont.fillStyle = `rgb(0, 0, ${(samples[i] - min) * 255 / (max - min)})`;
+		//hcont.fillStyle = `rgb(0, 0, ${(subsampled[i/4|0] - min) * 255 / (max - min)})`;
+		var val = samples[i] + samples[i + 1 % 360] + samples[i - 1 % 360];
+		val /= 3;
+		hcont.fillStyle = val > mid ? 'white' : 'black';
 		hcont.fillRect(i, 0, 1, 32);
 	}*/
 	/*
 	var flanks = []
-	var mid = (min + max) / 2
 	var startlevel = samples[0] < mid
 	var lastlevel = startlevel;
 	for(var i = 1; i < sampleCount; i ++){
@@ -171,9 +247,20 @@ getMarkerData = (c) => {
 	console.log(flanks);*/
 }
 
+drawImage = () => {
+	overlay.clearRect(0,0,inputSize[0],inputSize[1]);
+	for(var x = 0; x < inputSize[0]; x++){
+		for(var y = 0; y < inputSize[1]; y++){
+			var pxdata = samplePixel(x,y);
+			overlay.fillStyle = pxdata > median? 'rgba(0,255,0,0.5)' : 'rgba(255,0,0,0.5)';
+			overlay.fillRect(x,y,1,1);
+		}
+	}
+}
+
 samplePixel = (x, y) => {
 	var x2 = (x / inputSize[0] * _c.width) | 0;
-	var y2 = (y / inputSize[1] * _c.height) | 0;
+	var y2 =_c.height -  (y / inputSize[1] * _c.height) | 0;
 	return (rbb[(((y2 * _c.width) + x2) * 4) + 2] / 255) * 2 - 1;
  }
 
@@ -192,6 +279,20 @@ var init = () => {
 	overlay.width = inputSize[0];
 	overlay = overlay.getContext('2d');
 	overlay.font = "12px monospace";
+
+	document.body.addEventListener('keydown',e => {
+		if(e.keyCode == 13){
+			paused = true;
+			drawImage();
+		}
+	});
+
+	/*document.body.addEventListener('mousemove', e => {
+		var r = _c.getBoundingClientRect();
+		if(e.layerX > r.x && e.layerY > r.y && e.layerX < (e.x + e.width) && e.layerY < (e.y + e.height)){
+
+		}
+	});*/
 
 	g = _c.getContext("webgl");
 	rbb = new Uint8Array(4 * _c.height * _c.width);
