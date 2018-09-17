@@ -84,24 +84,33 @@ uniform float size_1;
 #define size_2 ((size_1 / 2.0) - 1.0)
 #define size_3 ((size_1 / 3.0) - 1.0)
 
+#define mean_size 50.0
+
 varying vec2 vUv;
 
-/*float correlate(float iterations, float size, float compare){
-    float mean = 0.0;
-    for(float i = 0.0; i < iterations; i+= 1.0){
-        vec2 sample_offset = vec2(cos((i / iterations) * 2.0 * PI), sin((i / iterations) * 2.0 * PI));
-        vec4 sample_value = texture2D(tex, vUv + (sample_offset / size * vec2(size))) / 2.0 + 0.5;
-        mean += (sample_value.r + sample_value.g + sample_value.b) * compare;
+vec4 get_raw_sample(vec2 offset){
+    return texture2D(tex, vUv + (offset / size * vec2(size)));
+}
+
+vec4 get_sample(vec2 offset){
+    vec4 color =   texture2D(tex, vUv + (offset));
+    vec4 mean = vec4(0.0);
+    for(float x = 0.0; x < 2.0*mean_size; x+=1.0 ){
+        for(float y = 0.0; y < 2.0*mean_size; y+=1.0){
+            mean +=  texture2D(tex, vUv + (offset + vec2(x,y)));
+        }
     }
-    return mean / iterations;
-}*/
+    float correction_factor = 0.5 - (((mean.r / (mean_size * mean_size)) + (mean.g / (mean_size * mean_size)) + (mean.b / (mean_size * mean_size))) / 3.0);
+    color = color + vec4(correction_factor, correction_factor, correction_factor, 0.0);
+    return color;
+}
 
 void main() {
     //äußerer kreis (weiß)
     float mean = 0.0;
     for(float i = 0.0; i < iterations_1; i+= 1.0){
         vec2 sample_offset = vec2(cos((i / iterations_1) * 2.0 * PI), sin((i / iterations_1) * 2.0 * PI));
-        vec4 sample_value = texture2D(tex, vUv + (sample_offset / size * vec2(size_1))) / 2.0 + 0.5;
+        vec4 sample_value =  texture2D(tex, vUv + (sample_offset / size * vec2(size_1))) / 2.0 + 0.5;
         mean += sample_value.r + sample_value.g + sample_value.b;
     }
     for(float i = 0.0; i < iterations_2; i+= 1.0){
