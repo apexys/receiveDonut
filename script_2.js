@@ -1,76 +1,33 @@
-var inputSize = [640, 480]
+var inputSize = [1280, 720]
 var video;
 var rbb;
 var paused = false;
 var overlay = undefined;
 var framet = 0;
 var outer_ring_size = 3.0;
-var threshold = 0.1;
 var hcont = undefined;
 var median = 0;
 
 drawScene = () => {
-	//Setup scene drawing
 	outer_ring_size = parseFloat(document.getElementById('size').value);
 	document.getElementById('rangeinfo').innerText = outer_ring_size;
-
-	threshold = parseFloat(document.getElementById('threshold').value);
-	document.getElementById('thresholdinfo').innerText = threshold;
-
 	if(paused){requestAnimationFrame(drawScene); return;}
 	var t1 = performance.now();
-
-	//GL
-	//First render pass
-	g.bindFramebuffer(g.FRAMEBUFFER, meanfb); //Render to texture
-	g.useProgram(preprocess);//Use preprocess program
-
-	//Load webcam image into texture "postfxtex"
 	g.bindTexture(g.TEXTURE_2D, postfxtex);
 	g.texSubImage2D(g.TEXTURE_2D, 0, 0, 0, g.RGBA, g.UNSIGNED_BYTE, video);
-
-	//Load texture into sampler 0
+	g.useProgram(f);
+	g.bindFramebuffer(g.FRAMEBUFFER, null);
 	g.activeTexture(g.TEXTURE0);
 	g.bindTexture(g.TEXTURE_2D, postfxtex);
-
-	//Set a couple of attributes in the shader
-	g.uniform1i(preprocess.tex, 0);
-	g.uniform2f(preprocess.size, inputSize[0], inputSize[1]);
-	//Bind the vertex buffer
-	g.bindBuffer(g.ARRAY_BUFFER, dummyBuffer);
-	//Set the viewport
-	g.viewport(0, 0, window.innerWidth, window.innerHeight);
-
-	//g.bindFramebuffer(g.FRAMEBUFFER, null);
-
-	//Render
-	g.vertexAttribPointer(f.pos, 2, g.FLOAT, 0, 0, 0);
-	g.drawArrays(g.TRIANGLE_STRIP, 0, 4);
-
-
-	
-	//Second render pass
-	g.useProgram(f);
-
-	g.bindFramebuffer(g.FRAMEBUFFER, null);//Render to the actual framebuffer
-
-	g.activeTexture(g.TEXTURE0); //Select texture unit 0
-	g.bindTexture(g.TEXTURE_2D, meantex); //Load the buffer we just calculated into it
-
-	//Some attributes again
 	g.uniform1i(f.tex, 0);
 	g.uniform1f(f.size_1,outer_ring_size);
-	g.uniform1f(f.threshold, threshold);
+	//var im = document.querySelector("img");
 	g.uniform2f(f.size, inputSize[0], inputSize[1]);
 	g.bindBuffer(g.ARRAY_BUFFER, dummyBuffer);
 	g.viewport(0, 0, window.innerWidth, window.innerHeight);
 	g.vertexAttribPointer(f.pos, 2, g.FLOAT, 0, 0, 0);
 	g.drawArrays(g.TRIANGLE_STRIP, 0, 4); //RENDER TO SCREEN
 	g.readPixels(0, 0, _c.width, _c.height, g.RGBA, g.UNSIGNED_BYTE, rbb);
-
-
-	//Search the canvas
-	
 	finds = []
 	var radius = outer_ring_size;
 	var distf = (x, y, box) => {
@@ -121,7 +78,7 @@ drawScene = () => {
 		var data = getMarkerData(center);
 		if(data){
 			overlay.strokeText("ID: " + data.number,center[0]+30,center[1]+45);
-			overlay.strokeText("Confidence: " + ((1 - (data.errors / sampleCount))* 100) + "%",center[0]+30,center[1]+60);
+			overlay.strokeText("Code: " + data.code,center[0]+30,center[1]+60);
 			overlay.moveTo(center[0], center[1]);
 			overlay.lineTo(center[0] + (Math.cos(data.orientation) * 50), center[1] + (Math.sin(data.orientation) * 50));
 		}
@@ -129,7 +86,6 @@ drawScene = () => {
 		overlay.stroke();
 
 	}
-	
 	var t2 = performance.now();
 	overlay.fillStyle = "white";
 	framet = (framet * 0.9) + ((t2-t1) * 0.1)
@@ -138,7 +94,6 @@ drawScene = () => {
 	overlay.fillText(`Pixel 0: ${samplePixel2(inputSize[0]/2,inputSize[1]/2)}, median: ${median}`,0,36);
 	overlay.fillStyle = "white";
 	overlay.fillRect(30,30,20,20);
-	
 	requestAnimationFrame(drawScene);	
 };
 
@@ -154,45 +109,24 @@ let samplePixel2 = (x,y) => {
 
 const sampleCount = 360;
 var markers = [];
-for(var j = 0; j < 127; j++){
-	var vShift = 0;
-	var vBitPattern = [];
-    do{
-        vBitPattern.push((j & (1 << vShift)) ? 1 : 0);
-    } while(j >> ++vShift);
-        
-    console.log(vBitPattern);
-    
-    // NumberOfMaxBits = 14;
-    
-    var vSplitBits = [ 1, 4, 7 ]
-    
-    for(var vI=0; vI < vSplitBits.length; vI += 1){
-        vBitPattern.splice(vSplitBits[vI]-1, 0, 0);
-    }
-        
-    var vHammingBits = [ 1, 2, 4, 8 ]
-    
-    for(var vI=0; vI < vHammingBits.length; ++vI){
-        vBitPattern.splice(vHammingBits[vI]-1, 0, 0); 
-    }
-    
-    console.log(vBitPattern.join());
-    
-    for(var vI=0; vI < vHammingBits.length; ++vI){
-        var vHammingBit = 0;
-        for( var vCurrent=vHammingBits[vI]-1; vCurrent < vBitPattern.length; vCurrent += 2*vHammingBits[vI] ){
-            for( var vAdded = 0; vAdded < vHammingBits[vI]; ++vAdded ){
-                vHammingBit = vHammingBit ^ vBitPattern[vCurrent+vAdded];
-            }
-        }
-        vBitPattern[vHammingBits[vI]-1] = vHammingBit; 
+for(var j = 0; j < 32; j++){
+	var t = [1,1,1,1,0,1,1,0,1,1,0,1,1,0,1,1,0,1,1,0];
+	if(! (j & 1)){
+		t[5] = 0;
 	}
-	vBitPattern.splice(0,0,1,1,1,1);
-	vBitPattern = vBitPattern.reverse()
-	//vBitPattern = vBitPattern.map(b => b == 1? 0 : 1);
-
-	markers.push(vBitPattern);
+	if(! (j & 2)){
+		t[8] = 0;
+	}
+	if(! (j & 4)){
+		t[11] = 0;
+	}
+	if(! (j & 8)){
+		t[14] = 0;
+	}
+	if(! (j & 16)){
+		t[17] = 0;
+	}
+	markers.push(t);
 }
 
 
@@ -357,7 +291,7 @@ getMarkerData = (c) => {
 
 	var data = {
 		orientation: rotations[mindex],
-		errors: minerrors,
+		code: minerrors,
 		number: mindex
 	}
 	return data;
@@ -477,11 +411,20 @@ samplePixel = (x, y) => {
 
 
 var init = () => {
-	hcont = document.getElementById("hiss").getContext("2d"); //Get canvas for drawing the bar in the upper right, save as global variable
+	hcont = document.getElementById("hiss").getContext("2d");
 
-	document.getElementById('pause').addEventListener("click", ()=>{paused = !paused}); //Pause on click on the canvas
 
-	//Render a cpu-based threshold on ENTER
+	document.body.addEventListener("click", ()=>{paused = !paused});
+	window._c = document.getElementById('3d');
+	_c.height =  inputSize[1]// + 'px';//window.innerHeight;
+	_c.width = inputSize[0]// + 'px';//window.innerWidth;
+
+	overlay = document.getElementById('overlay');
+	overlay.height = inputSize[1];
+	overlay.width = inputSize[0];
+	overlay = overlay.getContext('2d');
+	overlay.font = "12px monospace";
+
 	document.body.addEventListener('keydown',e => {
 		if(e.keyCode == 13){
 			paused = true;
@@ -489,74 +432,43 @@ var init = () => {
 		}
 	});
 
-	//Prepare the overlay canvas
-	overlay = document.getElementById('overlay');
-	overlay.height = inputSize[1];
-	overlay.width = inputSize[0];
-	overlay = overlay.getContext('2d');
-	overlay.font = "12px monospace";
+	/*document.body.addEventListener('mousemove', e => {
+		var r = _c.getBoundingClientRect();
+		if(e.layerX > r.x && e.layerY > r.y && e.layerX < (e.x + e.width) && e.layerY < (e.y + e.height)){
 
-	//Prepare the canvas for rendering
-	window._c = document.getElementById('3d');
-	_c.height =  inputSize[1]// + 'px';//window.innerHeight;
-	_c.width = inputSize[0]// + 'px';//window.innerWidth;
-	g = _c.getContext("webgl");//Webgl context is named g
+		}
+	});*/
 
-	rbb = new Uint8Array(4 * _c.height * _c.width); //Pixel buffer for reading pixels back
+	g = _c.getContext("webgl");
+	rbb = new Uint8Array(4 * _c.height * _c.width);
 
-	//Prepare video interface
 	video = document.querySelector('video');
 	navigator.mediaDevices.getUserMedia({
 		audio: false,
 		video: {
-			width: {min: inputSize[0]}, height: {min: inputSize[1]} //configure video size to match canvas settings
+			width: {min: inputSize[0]}, height: {min: inputSize[1]}
 		}
-		//Once the video permission has been granted, start the video and a while later, start the GPU
-	  }).then((stream)=>{video.srcObject = stream; video.play(); setTimeout( drawScene, 100);}).catch((e)=>console.error(e));
+	  }).then((stream)=>{video.srcObject = stream; video.play(); drawScene();}).catch((e)=>console.error(e));
 	
-	//Compile shaders
-
-	//Mean-shader
-	var meanShader = g.createShader(g.FRAGMENT_SHADER);
-	g.shaderSource(meanShader, document.getElementById('mean').innerHTML);
-	g.compileShader(meanShader);
-	console.log(g.getShaderInfoLog(meanShader));
-
-	//Fragment shader
-  	var fragmentShader = g.createShader(g.FRAGMENT_SHADER);
+  var fragmentShader = g.createShader(g.FRAGMENT_SHADER);
 	g.shaderSource(fragmentShader, document.getElementById('fragment').innerHTML);
 	g.compileShader(fragmentShader);
 	console.log(g.getShaderInfoLog(fragmentShader));
-
-	//Vertex shader
 	var vertexShader = g.createShader(g.VERTEX_SHADER);
 	g.shaderSource(vertexShader, document.getElementById('vertex').innerHTML);
 	g.compileShader(vertexShader);
 	
-	//Compile programs
-	//Program to calculate the mean
-	preprocess = g.createProgram();
-	g.attachShader(preprocess, vertexShader);
-	g.attachShader(preprocess, meanShader);
-	g.linkProgram(preprocess);
-	preprocess.pos = g.getAttribLocation(preprocess, "pos");
-	g.enableVertexAttribArray(preprocess.pos);
-	preprocess.tex = g.getUniformLocation(preprocess, "tex");
-	preprocess.size = g.getUniformLocation(preprocess, "size");
-	
-	//Program to run the correlation
 	f = g.createProgram();
 	g.attachShader(f, vertexShader);
 	g.attachShader(f, fragmentShader);
 	g.linkProgram(f);
+
 	f.pos = g.getAttribLocation(f, "pos");
 	g.enableVertexAttribArray(f.pos);
 	f.tex = g.getUniformLocation(f, "tex");
 	f.size = g.getUniformLocation(f, "size");
 	f.size_1 = g.getUniformLocation(f,"size_1");
-	f.threshold = g.getUniformLocation(f, "threshold");
 		
-	//Dummy buffer so we have a mesh to render on
 	dummyBuffer = g.createBuffer();
 	g.bindBuffer(g.ARRAY_BUFFER, dummyBuffer);
 	g.bufferData(g.ARRAY_BUFFER, new Float32Array([
@@ -564,10 +476,8 @@ var init = () => {
             -1.0, 1.0,
              1.0, -1.0,
             -1.0, -1.0,
-		]), g.STATIC_DRAW);
-		
+        ]), g.STATIC_DRAW);
 
-	//Texture to render the webcam to
 	postfxtex = g.createTexture();
 	g.bindTexture(g.TEXTURE_2D, postfxtex);
 	g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, g.LINEAR);
@@ -575,20 +485,7 @@ var init = () => {
 	g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_S, g.CLAMP_TO_EDGE);
 	g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_T, g.CLAMP_TO_EDGE);
 	g.texImage2D(g.TEXTURE_2D, 0, g.RGBA, inputSize[0], inputSize[1], 0, g.RGBA, g.UNSIGNED_BYTE, null);
-
-	//Texture to render the mean to
-	meantex = g.createTexture();
-	g.bindTexture(g.TEXTURE_2D, meantex);
-	g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, g.LINEAR);
-	g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.LINEAR);
-	g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_S, g.CLAMP_TO_EDGE);
-	g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_T, g.CLAMP_TO_EDGE);
-	g.texImage2D(g.TEXTURE_2D, 0, g.RGBA, inputSize[0], inputSize[1], 0, g.RGBA, g.UNSIGNED_BYTE, null);
-
-	//Create a framebuffer from the texture so we can render to it
-	meanfb = g.createFramebuffer();
-	g.bindFramebuffer(g.FRAMEBUFFER, meanfb);
-	g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, g.TEXTURE_2D, meantex, 0);
+	//g.texSubImage2D(g.TEXTURE_2D, 0, 0, 0, pph, ppw, g.RGBA, g.UNSIGNED_BYTE, tb);
 
 	g.clearColor(.5, 0.0, 0.0, 1.0);
 	//setInterval(restart, 60000);

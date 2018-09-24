@@ -68,8 +68,8 @@ void main () {
                   vUv = ((pos * vec2(1.0, -1.0)) + 1.0) * 0.5;
                   gl_Position = vec4(pos, 0.0, 1.0);
                 }
-            </script>
-            <script type="text/glsl" id="fragment">
+</script>
+<script type="text/glsl" id="fragment">
                 #define PI 3.1415926535897932384626433832795
                 #define iterations_1 25.0
                 #define iterations_2 35.0
@@ -80,30 +80,13 @@ uniform sampler2D tex;
 
 uniform vec2 size;
 
+uniform float threshold;
+
 uniform float size_1;
 #define size_2 ((size_1 / 2.0) - 1.0)
 #define size_3 ((size_1 / 3.0) - 1.0)
 
-#define mean_size 50.0
-
 varying vec2 vUv;
-
-vec4 get_raw_sample(vec2 offset){
-    return texture2D(tex, vUv + (offset / size * vec2(size)));
-}
-
-vec4 get_sample(vec2 offset){
-    vec4 color =   texture2D(tex, vUv + (offset));
-    vec4 mean = vec4(0.0);
-    for(float x = 0.0; x < 2.0*mean_size; x+=1.0 ){
-        for(float y = 0.0; y < 2.0*mean_size; y+=1.0){
-            mean +=  texture2D(tex, vUv + (offset + vec2(x,y)));
-        }
-    }
-    float correction_factor = 0.5 - (((mean.r / (mean_size * mean_size)) + (mean.g / (mean_size * mean_size)) + (mean.b / (mean_size * mean_size))) / 3.0);
-    color = color + vec4(correction_factor, correction_factor, correction_factor, 0.0);
-    return color;
-}
 
 void main() {
     //äußerer kreis (weiß)
@@ -126,9 +109,36 @@ void main() {
     mean /= 3.0 * (iterations_1 + iterations_2 + iterations_3);
     vec4 rc = texture2D(tex, vUv);
     float bw = (rc.r + rc.g + rc.b) / 2.8;
-    if(mean > 0.1){gl_FragColor = vec4(1.0, mean * 2.5, bw, 1.0);}else{gl_FragColor = vec4(0.0, mean * 2.5, bw, 1.0);}
+    if(mean > threshold){gl_FragColor = vec4(1.0, mean * 2.5, bw, 1.0);}else{gl_FragColor = vec4(0.0, mean * 2.5, bw, 1.0);}
 }
-            </script>
+</script>
+
+<script type="text/glsl" id="mean">
+    precision highp float;
+    uniform sampler2D tex;
+    uniform vec2 size;
+    varying vec2 vUv;
+
+    #define mean_size 20.0
+
+    vec4 get_sample(vec2 offset){
+        vec4 color =   texture2D(tex, offset);
+        vec4 mean = vec4(0.0);
+        for(float x = 0.0; x < 2.0*mean_size; x+=5.0 ){
+            for(float y = 0.0; y < 2.0*mean_size; y+=5.0){
+                mean +=  texture2D(tex, offset + vec2(x - mean_size,y - mean_size));
+            }
+        }
+        float correction_factor = 0.5 - (((mean.r / (mean_size * mean_size)) + (mean.g / (mean_size * mean_size)) + (mean.b / (mean_size * mean_size))) / 3.0);
+        color = color + vec4(correction_factor, correction_factor, correction_factor, 0.0);
+        return color;
+    }
+
+
+    void main() {
+        gl_FragColor = /*texture2D(tex, vUv);*/get_sample(vUv);
+    }
+</script>
         </head>
             <body onload="init()">
             <canvas id="3d"></canvas>
@@ -136,7 +146,11 @@ void main() {
             <video></video>
             <canvas id="hiss" height="32px" width="360px"></canvas>
             <div id="info"></div>
-            <input type="range" min="1" max="100" id="size" style="position: absolute; bottom: 0; right: 0;"></input>
-            <div id="rangeinfo" style="position: absolute; bottom: 50px; right: 0; color: white;"></div>
+
+            <div id="controls"  style="position: absolute; bottom: 0; right: 0; padding: 0.5em; color: white; font-family: sans-serif;">
+                <button id="pause">Pause</button><br>
+                Marker size:<input type="range" min="1" max="100" value="19" id="size"></input><span id="rangeinfo"></span></br>
+                Threshold:<input type="range" min="0.001" max="0.2" step="0.01" value="0.1" id="threshold"></input><span id="thresholdinfo"></span></br>
+            </div>
         </body>
 </html>

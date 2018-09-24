@@ -1,0 +1,129 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8"/>
+        <title>Ringcode Generator</title>
+        <style>
+        body {
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            background-color: #ccc;
+        }
+        .a {
+            position: absolute;
+            top: 0px;
+            left: 0px;
+        }
+
+        </style>
+    </head>
+    <body>
+        <div style="position:relative; height: 512px;">
+            <canvas class="a"></canvas>
+            <img class="a"/></div>
+        <input type="text" placeholder="ID"></input>
+        <script>
+var c = document.getElementsByTagName("canvas")[0];
+c.height = c.width = 512;
+c.c = c.getContext("2d");
+document.getElementsByTagName("input")[0].addEventListener("input", (e) => {
+    var v = e.target.value;
+    if((v + '').length > 0){
+        try{
+            v = parseInt(v,10);
+        }catch(e)
+        {return;}
+        if(isNaN(v))return;
+        if(v > 1023 || v < 0)return;
+    }else return;
+        
+    var vShift = 0
+	var vBitPattern = [];
+    do{
+        vBitPattern.push((v & (1 << vShift)) ? 1 : 0);
+    } while(v >> ++vShift);
+        
+    console.log(vBitPattern);
+    
+    // NumberOfMaxBits = 14;
+    
+    var vSplitBits = [ 1, 4, 7 ]
+    
+    for(var vI=0; vI < vSplitBits.length; vI += 1){
+        vBitPattern.splice(vSplitBits[vI]-1, 0, 0);
+    }
+    
+    console.log(vBitPattern.join());
+    
+    var vHammingBits = [ 1, 2, 4, 8 ]
+    
+    for(var vI=0; vI < vHammingBits.length; ++vI){
+        vBitPattern.splice(vHammingBits[vI]-1, 0, 0); 
+    }
+    
+    console.log(vBitPattern.join());
+    
+    for(var vI=0; vI < vHammingBits.length; ++vI){
+        var vHammingBit = 0;
+        for( var vCurrent=vHammingBits[vI]-1; vCurrent < vBitPattern.length; vCurrent += 2*vHammingBits[vI] ){
+            for( var vAdded = 0; vAdded < vHammingBits[vI]; ++vAdded ){
+                vHammingBit = vHammingBit ^ vBitPattern[vCurrent+vAdded];
+            }
+        }
+        vBitPattern[vHammingBits[vI]-1] = vHammingBit; 
+    }
+    
+    console.log(vBitPattern);
+    
+    var count = 5 * 3 + 1 + 4
+    let cseg = (a) => 1.5 * Math.PI + ((a / count) * 2 * Math.PI);
+    c.c.fillStyle = "white";
+    c.c.fillRect(0, 0, 512, 512);
+    c.c.beginPath();
+    c.c.fillStyle = "black";
+    c.c.moveTo(256, 256);
+    c.c.arc(256, 256, 256, cseg(0), cseg(4));
+    c.c.closePath();
+    c.c.fill();
+    
+    var vStart = 5;
+    for(var vI = 0; vI < vBitPattern.length; ++vI){
+        if( vBitPattern[vI] ){
+            c.c.beginPath()
+            c.c.moveTo(256, 256);
+            c.c.arc(256, 256, 257, cseg(vStart+vI), cseg(vStart+vI+1));
+            c.c.closePath();
+            c.c.fill();
+        }
+    }
+    
+    c.c.beginPath();
+    c.c.fillStyle = "white";
+    c.c.arc(256, 256, 256 / 4 * 3, 0, 2 * Math.PI);
+    c.c.closePath();
+    c.c.fill();
+    c.c.beginPath();
+    c.c.fillStyle = "black";
+    c.c.arc(256, 256, 256 / 2, 0, 2 * Math.PI);
+    c.c.closePath();
+    c.c.fill();
+    c.c.beginPath();
+    c.c.fillStyle = "white";
+    c.c.arc(256, 256, 256 / 4, 0, 2 * Math.PI);
+    c.c.closePath();
+    c.c.fill();
+    c.c.font = "64px sans-serif";
+    c.c.fillStyle = "black";
+    c.c.fillText(v, 12, 500);
+    c.c.beginPath()
+    c.c.moveTo(512 - 32, 0);
+    c.c.lineTo(512, 64);
+    c.c.lineTo(512 - 64, 64);
+    c.c.closePath();
+    c.c.fill();
+    document.getElementsByTagName("img")[0].src = c.toDataURL();
+});
+        </script>
+    </body>
+</html>
