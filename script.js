@@ -188,10 +188,34 @@ for(var j = 0; j < 127; j++){
         }
         vBitPattern[vHammingBits[vI]-1] = vHammingBit; 
 	}
+
+	vBitPattern.splice(0,0,0);
+	while(vBitPattern.length < 16){
+		vBitPattern.push(0);
+	}
+	
+	console.log(vBitPattern.join());
+	var vTemp = []
+	for(var vI=vBitPattern.length-1; vI >= 0; --vI){
+		vTemp.push(vBitPattern[vI]);
+	}
+	vBitPattern = vTemp;
+	console.log(vBitPattern.join());
+
 	vBitPattern.splice(0,0,1,1,1,1);
-	vBitPattern = vBitPattern.reverse()
+
 	//vBitPattern = vBitPattern.map(b => b == 1? 0 : 1);
 
+	vTemp = []
+	for(var vI=0; vI < vBitPattern.length; ++vI){
+		for(vJ=0;vJ < sampleCount/vBitPattern.length; ++vJ){
+			vTemp.push(vBitPattern[vI]);
+		}
+	}
+	vBitPattern = vTemp;
+
+	console.log(vBitPattern.length);
+	console.log(vBitPattern.join());
 	markers.push(vBitPattern);
 }
 
@@ -284,7 +308,7 @@ getMarkerData = (c) => {
         }
 	}
     
-	console.log(biggest_black_start + " " + biggest_black_length);
+	//console.log(biggest_black_start + " " + biggest_black_length);
 	
     var temp = [];
     for(var i = 0; i < pattern.length; i++){
@@ -303,7 +327,7 @@ getMarkerData = (c) => {
 		}
 		hcont.fillRect(i , 0, 1, 32);
 	}
-
+/*
 	//console.log(pattern);
 	var short_pattern = new Float32Array(20);
 	for(var i = 0; i < 20; i++){
@@ -315,21 +339,21 @@ getMarkerData = (c) => {
 		short_pattern[i] = value;
 	}
 	//console.log(short_pattern);
-
-	var error_numbers = new Float32Array(32);
-	var rotations = new Float32Array(32);
+*/
+	var error_numbers = [];
+	var rotations = [];
 	var minerrors = sampleCount;
 	var mindex = 0
-	for(var pattern_number = 0; pattern_number < 32; pattern_number++){
+	for(var pattern_number = 0; pattern_number < markers.length; pattern_number++){
 		error_numbers[pattern_number] = sampleCount;
-		for(var j = 0; j < 20; j++){
+		for(var j = 0; j < sampleCount; j++){
 			var errors = 0;
-			for(var i = 0; i < 20; i++){
-				errors += Math.abs(short_pattern[i] - markers[pattern_number][i]);
+			for(var i = 0; i < sampleCount; i++){
+				errors += Math.abs(pattern[i] - markers[pattern_number][i]);
 			}
 			if(errors < error_numbers[pattern_number]){
 				error_numbers[pattern_number] = errors;
-				rotations[pattern_number] = j;
+				rotations[pattern_number] = j + biggest_black_start;
 				if(errors < minerrors){
 					mindex = pattern_number;
 					minerrors = errors;
@@ -338,21 +362,21 @@ getMarkerData = (c) => {
 
             // ERROR AFTER?????????????????????????????????????????????????????????????????????????????????????
 			
-			var temp = short_pattern[0];
-			for(var i = 0; i < 19; i++){
-				short_pattern[i] = short_pattern[i+1];
+			var temp = pattern[0];
+			for(var i = 0; i < sampleCount; i++){
+				pattern[i] = pattern[i+1];
 			}
-			short_pattern[19] = temp;
+			pattern[sampleCount-1] = temp;
 
 		}
 	}
 
-	for(var i = 0; i < 20; i++){
+	for(var i = 0; i < sampleCount; i++){
 		//hcont.fillStyle = `rgb(0, 0, ${(subsampled[i/4|0] - min) * 255 / (max - min)})`;
-		var val = markers[29][i]// + samples[i + 1 % 360] + samples[i - 1 % 360];
+		var val = markers[mindex][i]// + samples[i + 1 % 360] + samples[i - 1 % 360];
 		//val /= 3;
 		hcont.fillStyle = val < 1 ? 'pink' : 'black';
-		hcont.fillRect(i * (sampleCount / 20) , 16, (sampleCount / 20), 16);
+		hcont.fillRect(i , 16, 1, 16);
 	}
 
 	var data = {
